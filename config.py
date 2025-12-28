@@ -25,7 +25,6 @@ en_id_model.tokenizer_file = ".output/tokenizer_{}.json"
 en_id_model.train_set_ratio = 0.05
 
 # model
-en_id_model.autocast = True
 en_id_model.num_layers = 6
 en_id_model.num_heads = 8
 en_id_model.d_model = 512
@@ -34,7 +33,7 @@ en_id_model.dropout = 0.1
 
 # train
 en_id_model.batch_size = 10
-en_id_model.num_epochs = 20
+en_id_model.num_epochs = 30
 en_id_model.lr = 0.0001
 en_id_model.seq_len = 225
 en_id_model.d_model = 512

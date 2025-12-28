@@ -129,15 +129,18 @@ class TrainingCallback:
         if self.rlr:
             self.rlr.reinit()
 
-    def step(self, monitor_value, model_dict=None, optimizer_dict=None) -> bool:
+    def step(self, monitor_value, epoch, model_dict=None, optimizer_dict=None) -> bool:
         # checkpoint
         if self.cp and model_dict:
-            dict = {"model": model_dict}
+            checkpoint_dict = {"model": model_dict, "epoch": epoch}
 
             if optimizer_dict:
-                dict["optimizer"] = optimizer_dict
+                checkpoint_dict["optimizer"] = {
+                    k: v.state_dict() if hasattr(v, "state_dict") else v
+                    for k, v in optimizer_dict.items()
+                }
 
-            self.cp.step(monitor_value, dict)
+            self.cp.step(monitor_value, checkpoint_dict)
 
         # lr scheduler
         if self.rlr and optimizer_dict:

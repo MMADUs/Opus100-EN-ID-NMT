@@ -1,3 +1,5 @@
+# Copyright 2025-2026 Muhammad Nizwa. All rights reserved.
+
 import torch
 
 from pathlib import Path
@@ -5,6 +7,7 @@ from config import en_id_model as mtconf, to_device, get_default_device
 from tokenizers import Tokenizer
 
 from model import build_model
+from dataset import causal_mask
 
 
 def translate(sentence: str):
@@ -59,10 +62,9 @@ def translate(sentence: str):
             seq_len = decoder_input.size(1)
 
             # mask to ignore padding and stop looking at future words
-            future_mask = torch.triu(
-                torch.ones((1, seq_len, seq_len), device=device), diagonal=1
-            ).bool()
-            dec_mask = (decoder_input != pad).unsqueeze(1) & ~future_mask
+            dec_mask = causal_mask(seq_len).to(device) & (
+                decoder_input != pad
+            ).unsqueeze(1)
 
             # predict the next word
             out = model.decode(memory, source_mask, decoder_input, dec_mask)
