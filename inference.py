@@ -11,6 +11,14 @@ from dataset import causal_mask
 
 
 def translate(sentence: str):
+    """example of inference function for translation
+
+    Args:
+        sentence (str): input text to be translated
+
+    Returns:
+        str: translated text
+    """
     device = get_default_device()
 
     # get tokenizers
