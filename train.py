@@ -18,7 +18,12 @@ from utils import time_formatter
 
 
 def greedy_decode(
-    model, encoder_input, encoder_mask, tokenizer_tgt, seq_len, device=get_default_device()
+    model,
+    encoder_input,
+    encoder_mask,
+    tokenizer_tgt,
+    seq_len,
+    device=get_default_device(),
 ) -> List[str]:
     """
     Batched greedy decoding for validation.
@@ -47,7 +52,9 @@ def greedy_decode(
     finished = [False] * B
 
     for _ in range(seq_len):
-        decoder_mask = causal_mask(decoder_input.size(1)).to(device).type_as(encoder_mask)
+        decoder_mask = (
+            causal_mask(decoder_input.size(1)).to(device).type_as(encoder_mask)
+        )
 
         # decode
         out = model.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
@@ -68,7 +75,10 @@ def greedy_decode(
     results = []
     for seq in decoder_input:
         seq_ids = seq.tolist()
-        cleaned_ids = [t for t in seq_ids if t not in (sos, eos, pad)]
+        cleaned_ids = []
+        for token_id in seq_ids:
+            if token_id not in (sos, eos, pad):
+                cleaned_ids.append(token_id)
         results.append(tokenizer_tgt.decode(cleaned_ids))
 
     return results
@@ -134,18 +144,16 @@ def train_model(conf, callback, preload: bool = False) -> dict:
             - "val_WER" (list[float]): Word Error Rate per epoch
             - "val_BLEU" (list[float]): BLEU score per epoch
     """
+    # prepare dataloader
     train_dl, val_dl, _tdl, tokenizer_src, tokenizer_tgt = get_dataloaders(conf)
 
     init_epoch = 0
-
     model_path = Path(conf.model_output)
 
+    # initialize model and optimizer
     if not preload or not model_path.exists():
-        # model
         model = build_model(conf, tokenizer_src, tokenizer_tgt)
         model = to_device(model)
-
-        # optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=conf.lr, eps=1e-9)
     else:
         model, optimizer, last_epoch = preload_state(conf, tokenizer_src, tokenizer_tgt)
@@ -219,6 +227,8 @@ def train_model(conf, callback, preload: bool = False) -> dict:
             scaler.update()
 
             train_loss += loss.item()
+
+            # show train info in tqdm
             batch_iter.set_postfix({"loss": f"{loss.item():6.3f}"})
 
         model.eval()
@@ -253,14 +263,14 @@ def train_model(conf, callback, preload: bool = False) -> dict:
                         label.view(-1),
                     )
 
-                # predict sentence to measure validation performance
+                val_loss += loss.item()
+
+                # simulate inference to measure validation performance
                 pred_texts = greedy_decode(
                     model, encoder_input, encoder_mask, tokenizer_tgt, conf.seq_len
                 )
                 predicted_texts.extend(pred_texts)
                 expected_texts.extend(batch["tgt_text"])
-
-                val_loss += loss.item()
 
         # avg
         train_loss /= len(train_dl)

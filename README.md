@@ -1,4 +1,4 @@
-# Opus100 English-Indonesian Machine Translation Model
+# Opus100 English-Indonesian Neural Machine Translation
 
 A PyTorch implementation of a Transformer-based neural machine translation (NMT) model trained on the Opus100 English-Indonesian parallel corpus. This project implements the complete Transformer architecture from scratch, providing both educational value and practical translation capabilities.
 
@@ -14,6 +14,8 @@ A PyTorch implementation of a Transformer-based neural machine translation (NMT)
 - **Data Preprocessing**: Automatic tokenization, padding, and causal masking
 
 ## Architecture
+
+![Model Architecture](transformer.png)
 
 The model consists of:
 
@@ -57,10 +59,12 @@ history = train_model(en_id_model, callback, preload=False)
 ### Inference
 
 ```python
-from inference import translate
+from inference import TranslationContext
+
+context = TranslationContext()
 
 sentence = "good morning, lets have a breakfast together"
-translation = translate(sentence)
+translation = context.translate(sentence)
 print(translation)
 ```
 

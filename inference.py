@@ -10,87 +10,98 @@ from model import build_model
 from dataset import causal_mask
 
 
-def translate(sentence: str):
-    """example of inference function for translation
-
-    Args:
-        sentence (str): input text to be translated
-
-    Returns:
-        str: translated text
+class TranslationContext:
     """
-    device = get_default_device()
+    A context class for performing machine translation inference.
 
-    # get tokenizers
-    tokenizer_src = Tokenizer.from_file(
-        str(Path(mtconf.tokenizer_file.format(mtconf.lang_src)))
-    )
-    tokenizer_tgt = Tokenizer.from_file(
-        str(Path(mtconf.tokenizer_file.format(mtconf.lang_tgt)))
-    )
+    This class manages the translation pipeline, including tokenizer loading,
+    model initialization, and translation execution. It handles encoding of
+    source text, encoder-decoder inference, and decoding of predicted text.
+    """
 
-    # load model
-    model = build_model(mtconf, tokenizer_src, tokenizer_tgt)
-    checkpoint = torch.load(mtconf.model_output)
-    model.load_state_dict(checkpoint["model"]["model"])
-    model = to_device(model)
-    model.eval()
-
-    # special tokens
-    pad = tokenizer_tgt.token_to_id("[PAD]")
-    sos = tokenizer_tgt.token_to_id("[SOS]")
-    eos = tokenizer_tgt.token_to_id("[EOS]")
-
-    with torch.no_grad():
-        # build input source
-        src_ids = tokenizer_src.encode(sentence).ids
-        source = torch.tensor(
-            [tokenizer_src.token_to_id("[SOS]")]
-            + src_ids
-            + [tokenizer_src.token_to_id("[EOS]")]
-            + [tokenizer_src.token_to_id("[PAD]")]
-            * (mtconf.seq_len - len(src_ids) - 2),
-            dtype=torch.long,
-            device=device,
+    def __init__(self):
+        # get tokenizers
+        self.tokenizer_src = Tokenizer.from_file(
+            str(Path(mtconf.tokenizer_file.format(mtconf.lang_src)))
+        )
+        self.tokenizer_tgt = Tokenizer.from_file(
+            str(Path(mtconf.tokenizer_file.format(mtconf.lang_tgt)))
         )
 
-        # make encoder mask
-        source_mask = (
-            (source != tokenizer_src.token_to_id("[PAD]")).unsqueeze(0).unsqueeze(0)
-        )
+        # load model
+        self.model = build_model(mtconf, self.tokenizer_src, self.tokenizer_tgt)
 
-        # encode input (making this as the context to understand)
-        memory = model.encode(source, source_mask)
+        checkpoint = torch.load(mtconf.model_output)
 
-        # start of sentence
-        decoder_input = torch.tensor([[sos]], device=device)
+        self.model.load_state_dict(checkpoint["model"]["model"])
+        self.model = to_device(self.model)
+        self.model.eval()
 
-        # generate text gradually
-        while decoder_input.size(1) < mtconf.seq_len:
-            seq_len = decoder_input.size(1)
+    def translate(self, sentence: str) -> str:
+        device = get_default_device()
 
-            # mask to ignore padding and stop looking at future words
-            dec_mask = causal_mask(seq_len).to(device) & (
-                decoder_input != pad
-            ).unsqueeze(1)
+        # special tokens
+        pad = self.tokenizer_tgt.token_to_id("[PAD]")
+        sos = self.tokenizer_tgt.token_to_id("[SOS]")
+        eos = self.tokenizer_tgt.token_to_id("[EOS]")
 
-            # predict the next word
-            out = model.decode(memory, source_mask, decoder_input, dec_mask)
-            logits = model.project(out[:, -1])
-            next_word = torch.argmax(logits, dim=1)
+        with torch.no_grad():
+            # build input source
+            src_ids = self.tokenizer_src.encode(sentence).ids
+            source = torch.tensor(
+                [self.tokenizer_src.token_to_id("[SOS]")]
+                + src_ids
+                + [self.tokenizer_src.token_to_id("[EOS]")]
+                + [self.tokenizer_src.token_to_id("[PAD]")]
+                * (mtconf.seq_len - len(src_ids) - 2),
+                dtype=torch.long,
+                device=device,
+            )
 
-            # append predicted word
-            decoder_input = torch.cat([decoder_input, next_word.unsqueeze(0)], dim=1)
+            # make encoder mask
+            source_mask = (
+                (source != self.tokenizer_src.token_to_id("[PAD]"))
+                .unsqueeze(0)
+                .unsqueeze(0)
+            )
 
-            # if end of sentence, stop generating word
-            if next_word.item() == eos:
-                break
+            # encode input (making this as the context to understand)
+            memory = self.model.encode(source, source_mask)
 
-        # list of predicted tokens
-        ids = decoder_input[0].tolist()
+            # start of sentence
+            decoder_input = torch.tensor([[sos]], device=device)
 
-        # ignore padding and stop at eos
-        cleaned_ids = [t for t in ids if t != pad and t != eos]
+            # generate text gradually
+            while decoder_input.size(1) < mtconf.seq_len:
+                seq_len = decoder_input.size(1)
 
-        # decode to text
-        return tokenizer_tgt.decode(cleaned_ids)
+                # mask to ignore padding and stop looking at future words
+                dec_mask = causal_mask(seq_len).to(device) & (
+                    decoder_input != pad
+                ).unsqueeze(1)
+
+                # predict the next word
+                out = self.model.decode(memory, source_mask, decoder_input, dec_mask)
+                logits = self.model.project(out[:, -1])
+                next_word = torch.argmax(logits, dim=1)
+
+                # append predicted word
+                decoder_input = torch.cat(
+                    [decoder_input, next_word.unsqueeze(0)], dim=1
+                )
+
+                # if end of sentence, stop generating word
+                if next_word.item() == eos:
+                    break
+
+            # list of predicted tokens
+            seq_ids = decoder_input[0].tolist()
+
+            # remove sos, pad, and eos token
+            cleaned_ids = []
+            for token_id in seq_ids:
+                if token_id not in (sos, eos, pad):
+                    cleaned_ids.append(token_id)
+
+            # decode to text
+            return self.tokenizer_tgt.decode(cleaned_ids)

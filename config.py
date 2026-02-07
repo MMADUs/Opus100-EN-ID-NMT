@@ -7,6 +7,7 @@ from easydict import EasyDict
 def get_default_device():
     return torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
+DEVICE = get_default_device()
 
 def to_device(data, device=get_default_device()):
     if isinstance(data, (list, tuple)):
