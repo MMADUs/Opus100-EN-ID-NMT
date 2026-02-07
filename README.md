@@ -42,7 +42,7 @@ The model consists of:
 ### Training
 
 See the training notebook here:  
-[test.ipynb](https://github.com/MMADUs/Opus100-EN-ID-NMT/blob/main/train.ipynb)
+[train.ipynb](https://github.com/MMADUs/Opus100-EN-ID-NMT/blob/main/train.ipynb)
 
 ```python
 from train import train_model
